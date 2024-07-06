@@ -44,10 +44,15 @@ func dnsServer() {
 		} else {
 			headerFlags := dns.DecodeDNSFlags(receivedHeader.Flags)
 			headerFlags.QR = 1
+			headerFlags.AA = 0
+			headerFlags.TC = 0
+			headerFlags.RA = 0
+			headerFlags.Z = 0
+			headerFlags.RCODE = 4
 
 			receivedHeader.QDCount = 1
 			receivedHeader.ANCount = 1
-			receivedHeader.ID = 1234
+			// receivedHeader.ID = 1234
 			receivedHeader.Flags = dns.EncodeDNSFlags(headerFlags)
 			answers := []dns.DNSRecord{}
 
