@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log"
+	"net"
 )
 
 type DNSHeader struct {
@@ -72,7 +73,7 @@ func DecodeDNSFlags(flags uint16) DNSFlags {
 }
 func PrintMessage(message []byte) {
 
-	header, questions, err := ParseDNSMessage(message)
+	header, questions, answers, err := ParseDNSMessage(message)
 	if err != nil {
 		log.Fatalf("Error parsing DNS message: %v", err)
 	}
@@ -94,12 +95,35 @@ func PrintMessage(message []byte) {
 		fmt.Printf("  QClass: %d\n", q.QClass)
 	}
 
+	fmt.Printf("\nDNS Answers:\n")
+	for _, a := range answers {
+		fmt.Printf("  Name: %s\n", a.Name)
+		fmt.Printf("  Type: %d\n", a.Type)
+		fmt.Printf("  Class: %d\n", a.Class)
+		fmt.Printf("  TTL: %d\n", a.TTL)
+		fmt.Printf("  RDLength: %d\n", a.RDLength)
+		fmt.Printf("  RData: %v\n", a.RData)
+	}
+
 	fmt.Println("End of the DNS message")
+}
+func IPAddressStringToBytes(ipStr string) ([]byte, error) {
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return nil, fmt.Errorf("invalid IP address format: %s", ipStr)
+	}
+
+	ip = ip.To4()
+	if ip == nil {
+		return nil, fmt.Errorf("not an IPv4 address: %s", ipStr)
+	}
+
+	return ip, nil
 }
 
 // ParseDNSMessage parses a DNS message byte slice into structured DNS components
 // func ParseDNSMessage(message []byte) (header DNSHeader, questions []DNSQuestion, answers []DNSRecord, authorities []DNSRecord, additionals []DNSRecord, err error) {
-func ParseDNSMessage(message []byte) (header DNSHeader, questions []DNSQuestion, err error) {
+func ParseDNSMessage(message []byte) (header DNSHeader, questions []DNSQuestion, answers []DNSRecord, err error) {
 	// Parse DNS header
 	header.ID = binary.BigEndian.Uint16(message[0:2])
 	header.Flags = binary.BigEndian.Uint16(message[2:4])
@@ -111,7 +135,7 @@ func ParseDNSMessage(message []byte) (header DNSHeader, questions []DNSQuestion,
 	offset := 12
 
 	for i := 0; i < int(header.QDCount); i++ {
-		qname, qnameLen := parseDomainName(message, offset)
+		qname, qnameLen := ParseDomainName(message, offset)
 		offset += qnameLen
 
 		qtype := binary.BigEndian.Uint16(message[offset : offset+2])
@@ -128,18 +152,18 @@ func ParseDNSMessage(message []byte) (header DNSHeader, questions []DNSQuestion,
 
 		questions = append(questions, question)
 	}
-
+	log.Println("So far so good")
 	// Parse answers, authorities, and additionals (similar structure)
-	// answers, offset = parseDNSRecords(message, offset, int(header.ANCount))
+	answers, offset = ParseDNSRecords(message, offset, int(header.ANCount))
 	// authorities, offset = parseDNSRecords(message, offset, int(header.NSCount))
 	// additionals, offset = parseDNSRecords(message, offset, int(header.ARCount))
 
-	return header, questions, nil
+	return header, questions, answers, nil
 }
 
-func parseDNSRecords(message []byte, offset int, count int) (records []DNSRecord, newOffset int) {
+func ParseDNSRecords(message []byte, offset int, count int) (records []DNSRecord, newOffset int) {
 	for i := 0; i < count; i++ {
-		name, nameLen := parseDomainName(message, offset)
+		name, nameLen := ParseDomainName(message, offset)
 		offset += nameLen
 
 		typ := binary.BigEndian.Uint16(message[offset : offset+2])
@@ -172,7 +196,7 @@ func parseDNSRecords(message []byte, offset int, count int) (records []DNSRecord
 	return records, offset
 }
 
-func parseDomainName(message []byte, offset int) (name string, length int) {
+func ParseDomainName(message []byte, offset int) (name string, length int) {
 	var parts []string
 	for {
 		length := int(message[offset])
@@ -199,7 +223,7 @@ func parseDomainName(message []byte, offset int) (name string, length int) {
 }
 
 // func EncodeDNSMessage(header DNSHeader, questions []DNSQuestion, answers []DNSRecord, additionals []DNSRecord) []byte {
-func EncodeDNSMessage(header DNSHeader, questions []DNSQuestion) []byte {
+func EncodeDNSMessage(header DNSHeader, questions []DNSQuestion, answers []DNSRecord) []byte {
 	message := make([]byte, 0)
 
 	// Encode DNS header
@@ -212,21 +236,21 @@ func EncodeDNSMessage(header DNSHeader, questions []DNSQuestion) []byte {
 
 	// Encode questions
 	for _, q := range questions {
-		message = append(message, encodeDomainName(q.QName)...)
+		message = append(message, EncodeDomainName(q.QName)...)
 		message = append(message, encodeUint16(q.QType)...)
 		message = append(message, encodeUint16(q.QClass)...)
 	}
 
 	// // Encode answers, authorities, and additionals (similar structure)
-	// message = encodeDNSRecords(message, answers)
+	message = EncodeDNSRecords(message, answers)
 	// message = encodeDNSRecords(message, additionals)
 
 	return message
 }
 
-func encodeDNSRecords(message []byte, records []DNSRecord) []byte {
+func EncodeDNSRecords(message []byte, records []DNSRecord) []byte {
 	for _, record := range records {
-		message = append(message, encodeDomainName(record.Name)...)
+		message = append(message, EncodeDomainName(record.Name)...)
 		message = append(message, encodeUint16(record.Type)...)
 		message = append(message, encodeUint16(record.Class)...)
 		message = append(message, encodeUint32(record.TTL)...)
@@ -236,7 +260,7 @@ func encodeDNSRecords(message []byte, records []DNSRecord) []byte {
 	return message
 }
 
-func encodeDomainName(name string) []byte {
+func EncodeDomainName(name string) []byte {
 	var encoded []byte
 
 	labels := splitLabels(name)

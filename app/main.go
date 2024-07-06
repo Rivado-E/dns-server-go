@@ -39,26 +39,40 @@ func dnsServer() {
 
 		response := []byte{}
 
-		if receivedHeader, receivedQuestions, err := dns.ParseDNSMessage(message); err != nil {
+		if receivedHeader, receivedQuestions, _, err := dns.ParseDNSMessage(message); err != nil {
 			log.Fatal(err)
 		} else {
 			headerFlags := dns.DecodeDNSFlags(receivedHeader.Flags)
 			headerFlags.QR = 1
 
 			receivedHeader.QDCount = 1
+			receivedHeader.ANCount = 1
 			receivedHeader.ID = 1234
 			receivedHeader.Flags = dns.EncodeDNSFlags(headerFlags)
+			answers := []dns.DNSRecord{}
 
-			for i := range receivedQuestions {
+			for i, question := range receivedQuestions {
 				receivedQuestions[i].QType = 1
 				receivedQuestions[i].QClass = 1
+				data, err := dns.IPAddressStringToBytes("8.8.8.8")
+
+				if err != nil {
+					log.Fatal("Error trying to convert ip to bytes", err)
+				}
+				record := dns.DNSRecord{
+					Name:     question.QName,
+					Type:     receivedQuestions[i].QType, // A record
+					Class:    receivedQuestions[i].QType, // IN
+					TTL:      60,
+					RDLength: uint16(len(data)),
+					// RData:    []byte{8, 8, 8, 8}, // 192.0.2.1
+					RData: data, // 192.0.2.1
+				}
+				answers = append(answers, record)
 			}
 
-			response = dns.EncodeDNSMessage(receivedHeader, receivedQuestions)
-			// log.Println("Here is my response")
-			// dns.PrintMessage(response)
+			response = dns.EncodeDNSMessage(receivedHeader, receivedQuestions, answers)
 		}
-		// Create an empty response
 
 		_, err = udpConn.WriteToUDP(response, source)
 		if err != nil {
