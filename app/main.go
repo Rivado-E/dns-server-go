@@ -1,10 +1,9 @@
 package main
 
 import (
+	dns "github.com/codecrafters-io/dns-server-starter-go/lib"
 	"log"
 	"net"
-
-	dns "github.com/codecrafters-io/dns-server-starter-go/lib"
 )
 
 func dnsServer() {
@@ -34,8 +33,8 @@ func dnsServer() {
 		}
 
 		message := buf[:size]
-		log.Println("Received %d bytes from %s:\n", size, source)
-		// dns.PrintMessage(message)
+		// log.Printf("Received %d bytes from %s:\n", size, source)
+		dns.PrintMessage(message)
 
 		response := []byte{}
 
@@ -50,13 +49,14 @@ func dnsServer() {
 			headerFlags.Z = 0
 			headerFlags.RCODE = 4
 
-			receivedHeader.QDCount = 1
-			receivedHeader.ANCount = 1
+			// receivedHeader.QDCount = 1
+			receivedHeader.ANCount = receivedHeader.QDCount
 			// receivedHeader.ID = 1234
 			receivedHeader.Flags = dns.EncodeDNSFlags(headerFlags)
 			answers := []dns.DNSRecord{}
 
 			for i, question := range receivedQuestions {
+
 				receivedQuestions[i].QType = 1
 				receivedQuestions[i].QClass = 1
 				data, err := dns.IPAddressStringToBytes("8.8.8.8")
@@ -76,12 +76,14 @@ func dnsServer() {
 				answers = append(answers, record)
 			}
 
+			// log.Fatal(len(answers))
 			response = dns.EncodeDNSMessage(receivedHeader, receivedQuestions, answers)
+			// dns.PrintMessage(response)
 		}
 
 		_, err = udpConn.WriteToUDP(response, source)
 		if err != nil {
-			log.Println("Failed to send response:", err)
+			log.Println("Failed to send response: ", err)
 		}
 	}
 }

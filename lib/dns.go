@@ -79,7 +79,6 @@ func PrintMessage(message []byte) {
 	}
 
 	// Print parsed data
-	log.Println("Start of the DNS message")
 	fmt.Printf("DNS Header:\n")
 	fmt.Printf("  ID: %d\n", header.ID)
 	fmt.Printf("  Flags: %d\n", header.Flags)
@@ -152,7 +151,7 @@ func ParseDNSMessage(message []byte) (header DNSHeader, questions []DNSQuestion,
 
 		questions = append(questions, question)
 	}
-	log.Println("So far so good")
+	// log.Println("So far so good")
 	// Parse answers, authorities, and additionals (similar structure)
 	answers, offset = ParseDNSRecords(message, offset, int(header.ANCount))
 	// authorities, offset = parseDNSRecords(message, offset, int(header.NSCount))
@@ -200,6 +199,7 @@ func ParseDomainName(message []byte, offset int) (name string, length int) {
 	var parts []string
 	for {
 		length := int(message[offset])
+		log.Println(message[offset:])
 		if length == 0 {
 			offset++
 			break
