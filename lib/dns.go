@@ -1,10 +1,13 @@
 package dns
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"log"
 	"net"
+	"strings"
+	"time"
 )
 
 type DNSHeader struct {
@@ -302,3 +305,43 @@ func encodeUint32(val uint32) []byte {
 	binary.BigEndian.PutUint32(buf, val)
 	return buf
 }
+
+
+func Forwad(question string, resolver string) (addrs []string, err error) {
+	r := &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			d := net.Dialer{
+				Timeout: time.Millisecond * time.Duration(10000),
+			}
+			return d.DialContext(ctx, network, resolver)
+		},
+	}
+	return r.LookupHost(context.Background(), question)
+}
+
+// func Lookup(question string, resolver string, port string) (addr string) {
+// 	addr = ""
+//     if ips, err := Forwad(question, resolver+ ":" +port)); err != nil {
+//         addr = ips[0]
+//     }  
+// 	return addr
+// }
+
+func IsIPv4(address string) bool {
+	return strings.Count(address, ":") < 2
+}
+
+func IsIPv6(address string) bool {
+	return strings.Count(address, ":") >= 2
+}
+
+func FilterIpV4(ips []string) (ipV4s []string) {
+	for _, ip := range(ips){
+		if IsIPv4(ip){
+			ipV4s = append(ipV4s, ip)
+		}
+	}	
+	return ipV4s
+}
+

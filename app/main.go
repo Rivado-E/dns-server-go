@@ -1,14 +1,15 @@
 package main
 
 import (
-	dns "github.com/codecrafters-io/dns-server-starter-go/lib"
 	"log"
 	"net"
+	"os"
+
+	dns "github.com/codecrafters-io/dns-server-starter-go/lib"
 )
 
 func dnsServer() {
 	udpAddr, err := net.ResolveUDPAddr("udp", "127.0.0.1:2053")
-	// udpAddr, err := net.ResolveUDPAddr("udp", "127.0.0.1:4200")
 	if err != nil {
 		log.Println("Failed to resolve UDP address:", err)
 		return
@@ -34,7 +35,7 @@ func dnsServer() {
 
 		message := buf[:size]
 		// log.Printf("Received %d bytes from %s:\n", size, source)
-		dns.PrintMessage(message)
+		// dns.PrintMessage(message)
 
 		response := []byte{}
 
@@ -59,11 +60,42 @@ func dnsServer() {
 
 				receivedQuestions[i].QType = 1
 				receivedQuestions[i].QClass = 1
-				data, err := dns.IPAddressStringToBytes("8.8.8.8")
+				// TODO: check if the argument exists first
 
-				if err != nil {
-					log.Fatal("Error trying to convert ip to bytes", err)
+				for _, arg := range os.Args {
+					log.Println("Command line args", arg)
 				}
+
+				ips, err := dns.Forwad(question.QName, os.Args[2])
+
+				// if err != nil {
+				//
+				// 	log.Println("Error trying to forward the request: ", err)
+				// 	log.Fatal("Error here is the question: ", question.QName)
+				//
+				// }
+
+				for _, ip := range ips {
+					log.Println(ip)
+				}
+				log.Println("Logged it before filtering")
+
+				ips = dns.FilterIpV4(ips)
+
+				for _, ip := range ips {
+					log.Println(ip)
+				}
+				// log.Fatal("Logged it after filtering")
+
+				data := []byte{}
+				if len(ips) != 0 {
+					data, err = dns.IPAddressStringToBytes(ips[0])
+					if err != nil {
+						log.Println("This is the ip: ", ips[0])
+						log.Fatal("Error trying to convert ip to bytes: ", err, ips[0])
+					}
+				}
+
 				record := dns.DNSRecord{
 					Name:     question.QName,
 					Type:     receivedQuestions[i].QType, // A record
